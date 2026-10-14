@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Search, Edit2, Check, AlertTriangle, Boxes } from 'lucide-react';
+import { Plus, Search, Edit2, Check, AlertTriangle, Boxes, Trash2 } from 'lucide-react';
 import { DataTable, Button, Input, Select, Modal, Badge } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency } from '../utils';
@@ -88,8 +88,8 @@ export const PartnerInventoryPage = () => {
     setFormData({
       name: prod.name,
       category: prod.category,
-      price: prod.price,
-      stock_qty: prod.stock_qty,
+      price: String(prod.price),
+      stock_qty: String(prod.stock_qty),
       is_active: prod.is_active,
     });
     setModalOpen(true);
@@ -131,6 +131,7 @@ export const PartnerInventoryPage = () => {
     setModalOpen(false);
   };
 
+  // Inline stock quantity edit
   const handleInlineStockChange = (id, newQty) => {
     const qty = Math.max(0, parseInt(newQty, 10) || 0);
     setProducts((prev) =>
@@ -138,11 +139,20 @@ export const PartnerInventoryPage = () => {
     );
   };
 
+  // Inline price edit
+  const handleInlinePriceChange = (id, newPrice) => {
+    const price = Math.max(0, parseFloat(newPrice) || 0);
+    setProducts((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, price } : p))
+    );
+  };
+
+  // Active toggle
   const handleToggleActive = (id) => {
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, is_active: !p.is_active } : p))
     );
-    toast.info('Item status toggled');
+    toast.info('Item listing visibility toggled');
   };
 
   const columns = [
@@ -154,12 +164,12 @@ export const PartnerInventoryPage = () => {
           <span className="font-semibold text-slate-900">{row.name}</span>
           {row.stock_qty < 5 && row.stock_qty > 0 && (
             <Badge variant="accent" size="sm" dot>
-              Low Stock
+              Low Stock ({row.stock_qty})
             </Badge>
           )}
           {row.stock_qty === 0 && (
             <Badge variant="danger" size="sm">
-              Out
+              Out of Stock
             </Badge>
           )}
         </div>
@@ -172,7 +182,20 @@ export const PartnerInventoryPage = () => {
     {
       header: 'Price (₹)',
       field: 'price',
-      render: (row) => formatCurrency(row.price),
+      render: (row) => (
+        <div className="flex items-center gap-1">
+          <span className="text-xs text-slate-400">₹</span>
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={row.price}
+            onChange={(e) => handleInlinePriceChange(row.id, e.target.value)}
+            className="w-20 px-2 py-1 text-xs border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-mono text-slate-800 font-semibold"
+            title="Edit price inline"
+          />
+        </div>
+      ),
     },
     {
       header: 'Stock Qty',
@@ -184,25 +207,29 @@ export const PartnerInventoryPage = () => {
             min="0"
             value={row.stock_qty}
             onChange={(e) => handleInlineStockChange(row.id, e.target.value)}
-            className={`w-20 px-2.5 py-1 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-mono ${
-              row.stock_qty < 5 ? 'border-amber-400 bg-amber-50/50' : 'border-slate-300'
+            className={`w-20 px-2.5 py-1 text-xs border rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-500 font-mono font-bold ${
+              row.stock_qty < 5
+                ? 'border-amber-400 bg-amber-50 text-amber-900'
+                : 'border-slate-300 text-slate-800'
             }`}
+            title="Edit stock inline"
           />
         </div>
       ),
     },
     {
-      header: 'Listing Status',
+      header: 'Catalog Status',
       field: 'is_active',
       render: (row) => (
         <button
           type="button"
           onClick={() => handleToggleActive(row.id)}
-          className={`px-2.5 py-1 rounded-full text-xs font-semibold transition-colors ${
+          className={`px-3 py-1 rounded-full text-xs font-semibold transition-all ${
             row.is_active
               ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
               : 'bg-slate-100 text-slate-500 hover:bg-slate-200 border border-slate-200'
           }`}
+          title="Toggle visibility"
         >
           {row.is_active ? 'Active' : 'Hidden'}
         </button>
@@ -234,7 +261,7 @@ export const PartnerInventoryPage = () => {
             Inventory & Stock Sync
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Modify available stock levels, adjust prices, and toggle public store catalog items.
+            Modify available stock levels, adjust prices inline, and toggle catalog visibility.
           </p>
         </div>
 
