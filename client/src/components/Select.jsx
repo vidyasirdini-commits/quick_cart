@@ -41,11 +41,11 @@ export const Select = React.forwardRef(
             required={required}
             aria-invalid={!!error}
             aria-describedby={error ? errorId : helperText ? helperId : undefined}
-            className={`block w-full appearance-none rounded-lg text-sm border pl-3.5 pr-10 py-2.5 transition-colors duration-150 ${
+            className={`block w-full appearance-none rounded-lg text-sm border pl-3.5 pr-10 py-2.5 transition-colors duration-150 motion-reduce:transition-none ${
               error
                 ? 'border-danger-300 text-danger-900 focus:border-danger-500 focus:ring-danger-500 bg-danger-50/20'
                 : 'border-slate-300 text-slate-900 focus:border-primary-500 focus:ring-primary-500 bg-white'
-            } focus:outline-none focus:ring-2 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed ${className}`}
+            } focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed ${className}`}
             {...props}
           >
             {placeholder && (
