@@ -95,4 +95,11 @@ export const adminApi = {
   toggleUserActive: (id) => api.patch(`/admin/users/${id}/toggle-active`),
 };
 
+// --- Mock Payment Gateway APIs ---
+export const paymentsApi = {
+  createIntent: (intentData) => api.post('/payments/create-intent', intentData),
+  confirmPayment: (paymentData) => api.post('/payments/confirm', paymentData),
+  getOrderPayment: (orderId) => api.get(`/payments/order/${orderId}`),
+};
+
 export default api;

@@ -13,6 +13,7 @@ import { Card, Badge, Button, Modal, Input, EmptyState } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
 import { ordersApi } from '../services';
+import { useRealtimeEvents } from '../hooks';
 
 const INITIAL_ORDERS = [
   {
@@ -71,7 +72,55 @@ export const PartnerOrdersPage = () => {
 
   const toast = useToast();
 
-  // Polling every 10 seconds
+  // Instant real-time updates via Server-Sent Events
+  const { isConnected } = useRealtimeEvents({
+    onNewOrder: (newOrd) => {
+      setOrders((prev) => {
+        if (prev.some((o) => o.id === newOrd.orderId)) return prev;
+        return [
+          {
+            id: newOrd.orderId,
+            customer: 'New Customer',
+            phone: '+91 98765 43210',
+            delivery_address: newOrd.deliveryAddress,
+            total: Number(newOrd.total || 0),
+            status: 'placed',
+            created_at: newOrd.createdAt || new Date().toISOString(),
+            items: [],
+          },
+          ...prev,
+        ];
+      });
+      // Also fetch full items
+      ordersApi.getOrders().then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          const formatted = data.map((ord) => ({
+            id: ord.id,
+            customer: ord.customer?.name || 'Customer',
+            phone: ord.customer?.phone || '+91 98765 43210',
+            delivery_address: ord.delivery_address,
+            total: Number(ord.total || 0),
+            status: ord.status,
+            created_at: ord.created_at,
+            items: ord.items?.map((it) => ({
+              id: it.id,
+              name: it.product?.name || it.name || 'Store Item',
+              qty: it.qty,
+              price: Number(it.unit_price || 0),
+            })) || [],
+          }));
+          setOrders(formatted);
+        }
+      }).catch(() => {});
+    },
+    onOrderUpdate: (update) => {
+      setOrders((prev) =>
+        prev.map((ord) => (ord.id === update.orderId ? { ...ord, status: update.status } : ord))
+      );
+    },
+  });
+
+  // Polling fallback every 10 seconds
   useEffect(() => {
     let isMounted = true;
     const fetchOrders = async () => {

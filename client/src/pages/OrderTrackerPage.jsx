@@ -9,11 +9,19 @@ import {
   XCircle,
   Truck,
   CheckCircle,
+  CreditCard,
+  Smartphone,
+  Building2,
+  Banknote,
+  Copy,
+  Check,
+  Radio,
 } from 'lucide-react';
 import { Stepper, Card, Badge, Button, Modal } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
-import { ordersApi } from '../services';
+import { ordersApi, paymentsApi } from '../services';
+import { useRealtimeEvents } from '../hooks';
 
 export const OrderTrackerPage = () => {
   const { id } = useParams();
@@ -59,10 +67,55 @@ export const OrderTrackerPage = () => {
     ],
   });
 
+  const [paymentInfo, setPaymentInfo] = useState({
+    payment_status: 'paid',
+    payment_method: 'card',
+    transaction_id: 'txn_qc_2026_9482A',
+    paid_at: new Date(Date.now() - 1000 * 60 * 35).toISOString(),
+  });
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
+  const [copiedTxn, setCopiedTxn] = useState(false);
 
-  // Poll for status update every 10 seconds
+  // Subscribe to real-time SSE push updates
+  const { isConnected } = useRealtimeEvents({
+    onOrderUpdate: (eventData) => {
+      if (eventData.orderId === id || eventData.orderId === order.id) {
+        setOrder((prev) => {
+          const alreadyLogged = prev.status_history?.some(
+            (h) => h.status === eventData.status
+          );
+          return {
+            ...prev,
+            status: eventData.status,
+            status_history: alreadyLogged
+              ? prev.status_history
+              : [
+                  ...(prev.status_history || []),
+                  {
+                    id: `h-rt-${Date.now()}`,
+                    status: eventData.status,
+                    changed_by: 'Live Dispatcher',
+                    changed_at: eventData.updatedAt || new Date().toISOString(),
+                  },
+                ],
+          };
+        });
+
+        if (eventData.transaction_id || eventData.payment_status) {
+          setPaymentInfo((prev) => ({
+            ...prev,
+            payment_status: eventData.payment_status || prev.payment_status,
+            payment_method: eventData.payment_method || prev.payment_method,
+            transaction_id: eventData.transaction_id || prev.transaction_id,
+          }));
+        }
+      }
+    },
+  });
+
+  // Initial fetch and resilient 10s fallback polling
   useEffect(() => {
     let isMounted = true;
     const fetchOrderStatus = async () => {
@@ -73,13 +126,19 @@ export const OrderTrackerPage = () => {
             setOrder((prev) => ({
               ...prev,
               ...data,
-              items: data.items?.map((it) => ({
-                id: it.id,
-                name: it.product?.name || it.name || 'Item',
-                qty: it.qty,
-                unit_price: it.unit_price,
-              })) || prev.items,
+              items:
+                data.items?.map((it) => ({
+                  id: it.id,
+                  name: it.product?.name || it.name || 'Item',
+                  qty: it.qty,
+                  price: it.unit_price,
+                })) || prev.items,
             }));
+          }
+
+          const payData = await paymentsApi.getOrderPayment(id);
+          if (isMounted && payData && payData.transaction_id) {
+            setPaymentInfo(payData);
           }
         }
       } catch {
@@ -104,20 +163,34 @@ export const OrderTrackerPage = () => {
           setOrder((prev) => ({
             ...prev,
             ...data,
-            items: data.items?.map((it) => ({
-              id: it.id,
-              name: it.product?.name || it.name || 'Item',
-              qty: it.qty,
-              unit_price: it.unit_price,
-            })) || prev.items,
+            items:
+              data.items?.map((it) => ({
+                id: it.id,
+                name: it.product?.name || it.name || 'Item',
+                qty: it.qty,
+                price: it.unit_price,
+              })) || prev.items,
           }));
         }
+
+        const payData = await paymentsApi.getOrderPayment(id);
+        if (payData && payData.transaction_id) {
+          setPaymentInfo(payData);
+        }
       }
-      toast.info('Order progress updated');
+      toast.info('Order progress refreshed');
     } catch {
       toast.info('Order details up to date');
     } finally {
       setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
+
+  const handleCopyTxn = () => {
+    if (paymentInfo.transaction_id) {
+      navigator.clipboard.writeText(paymentInfo.transaction_id);
+      setCopiedTxn(true);
+      setTimeout(() => setCopiedTxn(false), 2000);
     }
   };
 
@@ -147,7 +220,7 @@ export const OrderTrackerPage = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      {/* Top Navigation */}
+      {/* Top Navigation & Status Indicator */}
       <div className="flex items-center justify-between">
         <Link
           to="/orders"
@@ -156,14 +229,22 @@ export const OrderTrackerPage = () => {
           <ArrowLeft className="h-4 w-4 mr-1" />
           All Orders
         </Link>
-        <button
-          type="button"
-          onClick={handleRefresh}
-          className="inline-flex items-center gap-1.5 text-xs text-primary-600 hover:text-primary-700 font-medium"
-        >
-          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Auto-refreshing (10s)
-        </button>
+        <div className="flex items-center gap-3">
+          {isConnected && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+              Live Push
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleRefresh}
+            className="inline-flex items-center gap-1.5 text-xs text-primary-600 hover:text-primary-700 font-medium"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Header Info */}
@@ -201,32 +282,81 @@ export const OrderTrackerPage = () => {
         <Stepper currentStatus={order.status} history={order.status_history} />
       </Card>
 
-      {/* Order Details & Address */}
+      {/* Order Details, Payment Summary & Address */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Items Summary */}
-        <Card className="p-6 space-y-4">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Order Items</h3>
-          <div className="divide-y divide-slate-100 text-xs">
-            {order.items.map((item) => (
-              <div key={item.id} className="py-2.5 flex justify-between items-center">
-                <div>
-                  <span className="font-semibold text-slate-800">{item.name}</span>
-                  <p className="text-[11px] text-slate-500">Qty: {item.qty}</p>
+        {/* Left Column: Items Summary & Payment Info */}
+        <div className="space-y-6">
+          <Card className="p-6 space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Order Items</h3>
+            <div className="divide-y divide-slate-100 text-xs">
+              {order.items.map((item) => (
+                <div key={item.id} className="py-2.5 flex justify-between items-center">
+                  <div>
+                    <span className="font-semibold text-slate-800">{item.name}</span>
+                    <p className="text-[11px] text-slate-500">Qty: {item.qty}</p>
+                  </div>
+                  <span className="font-medium text-slate-900">
+                    {formatCurrency(item.price * item.qty)}
+                  </span>
                 </div>
-                <span className="font-medium text-slate-900">
-                  {formatCurrency(item.price * item.qty)}
+              ))}
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 flex justify-between text-sm font-bold text-slate-900">
+              <span>Total Paid</span>
+              <span className="text-primary-600">{formatCurrency(order.total)}</span>
+            </div>
+          </Card>
+
+          {/* Payment Details Card */}
+          <Card className="p-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                Payment Verification
+              </h3>
+              <Badge
+                variant={paymentInfo.payment_status === 'paid' ? 'success' : 'warning'}
+                className="text-[10px] uppercase font-bold"
+              >
+                {paymentInfo.payment_status === 'paid' ? 'Paid Online' : 'Cash on Delivery'}
+              </Badge>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2.5 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 flex items-center gap-1.5">
+                  {paymentInfo.payment_method === 'card' && <CreditCard className="w-4 h-4 text-slate-700" />}
+                  {paymentInfo.payment_method === 'upi' && <Smartphone className="w-4 h-4 text-slate-700" />}
+                  {paymentInfo.payment_method === 'netbanking' && <Building2 className="w-4 h-4 text-slate-700" />}
+                  {paymentInfo.payment_method === 'cod' && <Banknote className="w-4 h-4 text-slate-700" />}
+                  <span className="capitalize">{paymentInfo.payment_method || 'Card'} Payment</span>
+                </span>
+                <span className="font-semibold text-slate-900">
+                  {formatCurrency(order.total)}
                 </span>
               </div>
-            ))}
-          </div>
 
-          <div className="pt-3 border-t border-slate-100 flex justify-between text-sm font-bold text-slate-900">
-            <span>Total Paid</span>
-            <span className="text-primary-600">{formatCurrency(order.total)}</span>
-          </div>
-        </Card>
+              {paymentInfo.transaction_id && (
+                <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 font-mono text-[11px]">
+                  <span className="text-slate-500">Reference:</span>
+                  <div className="flex items-center gap-1 text-slate-700">
+                    <span className="truncate max-w-[160px]">{paymentInfo.transaction_id}</span>
+                    <button
+                      type="button"
+                      onClick={handleCopyTxn}
+                      className="p-1 hover:bg-slate-200 rounded text-slate-500 transition-colors"
+                      title="Copy Transaction ID"
+                    >
+                      {copiedTxn ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
 
-        {/* Delivery Details & Timestamp History */}
+        {/* Right Column: Delivery Details & Timestamp History */}
         <div className="space-y-6">
           <Card className="p-6">
             <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700 mb-3">

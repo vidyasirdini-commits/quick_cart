@@ -1,6 +1,7 @@
 const { z } = require('zod');
 const { prisma, memoryDB } = require('../models/db');
 const { successResponse, errorResponse } = require('../utils/response');
+const eventBus = require('../utils/eventBus');
 
 // Validation Schemas
 const createOrderSchema = z.object({
@@ -133,6 +134,9 @@ const createOrder = async (req, res, next) => {
         return newOrder;
       });
 
+      // Broadcast real-time new order event
+      eventBus.broadcastNewOrder(order);
+
       return successResponse(res, order, 201);
     } catch (dbError) {
       // If error was insufficient stock or validation, return 400
@@ -211,6 +215,9 @@ const createOrder = async (req, res, next) => {
         changed_by: req.user.name || 'Customer',
         changed_at: new Date().toISOString(),
       });
+
+      // Broadcast real-time new order event
+      eventBus.broadcastNewOrder(newOrder);
 
       return successResponse(res, newOrder, 201);
     }
@@ -550,6 +557,19 @@ const updateOrderStatus = async (req, res, next) => {
         changed_at: new Date().toISOString(),
       });
     }
+
+    // Broadcast real-time order update event
+    eventBus.broadcastOrderUpdate(
+      {
+        id,
+        status: targetStatus,
+        delivery_exec_id: assignedCourierId,
+        store_id: order.store_id,
+        customer_id: order.customer_id,
+        total: order.total,
+      },
+      reason || `Order transitioned to ${targetStatus}`
+    );
 
     return successResponse(res, {
       id,

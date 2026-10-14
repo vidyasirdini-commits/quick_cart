@@ -4,6 +4,7 @@ import { Card, Badge, Button, EmptyState } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
 import { ordersApi } from '../services';
+import { useRealtimeEvents } from '../hooks';
 
 const INITIAL_TASKS = [
   {
@@ -48,6 +49,35 @@ export const DeliveryTasksPage = () => {
   const [tasks, setTasks] = useState(INITIAL_TASKS);
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'history'
   const toast = useToast();
+
+  // Instant real-time updates for couriers
+  useRealtimeEvents({
+    onOrderUpdate: (update) => {
+      setTasks((prev) => {
+        if (prev.some((t) => t.id === update.orderId)) {
+          return prev.map((t) => (t.id === update.orderId ? { ...t, status: update.status } : t));
+        }
+        if (['packed', 'out_for_delivery'].includes(update.status)) {
+          return [
+            {
+              id: update.orderId,
+              status: update.status,
+              store_name: 'Local Partner Store',
+              pickup_address: 'Local Store Hub',
+              customer: 'Customer',
+              phone: '+91 98765 43210',
+              delivery_address: 'Central District Zone',
+              total: Number(update.total || 0),
+              items_count: 2,
+              created_at: new Date().toISOString(),
+            },
+            ...prev,
+          ];
+        }
+        return prev;
+      });
+    },
+  });
 
   useEffect(() => {
     let isMounted = true;
