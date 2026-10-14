@@ -1,0 +1,165 @@
+// QuickCart Prisma Schema
+// Hyperlocal commerce delivery platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  customer
+  partner
+  admin
+  delivery
+}
+
+enum OrderStatus {
+  placed
+  accepted
+  packed
+  out_for_delivery
+  delivered
+  rejected
+  cancelled
+}
+
+model Zone {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  users  User[]
+  stores Store[]
+  orders Order[]
+
+  @@map("zones")
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password_hash String
+  role          Role     @default(customer)
+  zone_id       String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  // Relations
+  zone            Zone?   @relation(fields: [zone_id], references: [id], onDelete: SetNull)
+  stores          Store[] @relation("StoreOwner")
+  customer_orders Order[] @relation("CustomerOrders")
+  delivery_orders Order[] @relation("DeliveryOrders")
+
+  @@index([email])
+  @@index([role])
+  @@index([zone_id])
+  @@map("users")
+}
+
+model Store {
+  id         String   @id @default(uuid())
+  owner_id   String
+  name       String
+  zone_id    String
+  is_open    Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  // Relations
+  owner    User      @relation("StoreOwner", fields: [owner_id], references: [id], onDelete: Cascade)
+  zone     Zone      @relation(fields: [zone_id], references: [id], onDelete: Restrict)
+  products Product[]
+  orders   Order[]
+
+  @@index([owner_id])
+  @@index([zone_id])
+  @@index([is_open])
+  @@map("stores")
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  store_id    String
+  name        String
+  category    String
+  price       Decimal  @db.Decimal(10, 2)
+  stock_qty   Int      @default(0)
+  image_url   String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  // Relations
+  store       Store       @relation(fields: [store_id], references: [id], onDelete: Cascade)
+  order_items OrderItem[]
+
+  @@index([store_id])
+  @@index([category])
+  @@index([is_active])
+  @@map("products")
+}
+
+model Order {
+  id               String      @id @default(uuid())
+  customer_id      String
+  store_id         String
+  status           OrderStatus @default(placed)
+  total            Decimal     @db.Decimal(10, 2)
+  delivery_address String
+  zone_id          String
+  delivery_exec_id String?
+  created_at       DateTime    @default(now())
+  updated_at       DateTime    @updatedAt
+
+  // Relations
+  customer        User                 @relation("CustomerOrders", fields: [customer_id], references: [id], onDelete: Restrict)
+  store           Store                @relation(fields: [store_id], references: [id], onDelete: Restrict)
+  zone            Zone                 @relation(fields: [zone_id], references: [id], onDelete: Restrict)
+  delivery_exec   User?                @relation("DeliveryOrders", fields: [delivery_exec_id], references: [id], onDelete: SetNull)
+  items           OrderItem[]
+  status_history  OrderStatusHistory[]
+
+  @@index([customer_id])
+  @@index([store_id])
+  @@index([zone_id])
+  @@index([delivery_exec_id])
+  @@index([status, created_at])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String  @id @default(uuid())
+  order_id   String
+  product_id String
+  qty        Int     @default(1)
+  unit_price Decimal @db.Decimal(10, 2)
+
+  // Relations
+  order   Order   @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [product_id], references: [id], onDelete: Restrict)
+
+  @@index([order_id])
+  @@index([product_id])
+  @@map("order_items")
+}
+
+model OrderStatusHistory {
+  id         String      @id @default(uuid())
+  order_id   String
+  status     OrderStatus
+  changed_by String
+  changed_at DateTime    @default(now())
+
+  // Relations
+  order Order @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@map("order_status_history")
+}
