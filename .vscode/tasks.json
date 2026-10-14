@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "dev",
+      "problemMatcher": [],
+      "label": "QuickCart: Run Full-Stack (Server + Client)",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "type": "npm",
+      "script": "dev:server",
+      "problemMatcher": [],
+      "label": "QuickCart: Run Backend API Server"
+    },
+    {
+      "type": "npm",
+      "script": "dev:client",
+      "problemMatcher": [],
+      "label": "QuickCart: Run Frontend Vite Client"
+    }
+  ]
+}
