@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Store, MapPin, Search, ArrowRight, Clock } from 'lucide-react';
 import { Card, Badge, Input, Select, Button } from '../components';
 import { storesApi } from '../services';
+import { useDebounce } from '../hooks';
 
 // Initial mock stores matching seed data as graceful fallback
 const INITIAL_STORES = [
@@ -50,13 +51,15 @@ export const StoresPage = () => {
   const [selectedZone, setSelectedZone] = useState('all');
   const [loading, setLoading] = useState(true);
 
+  const debouncedSearch = useDebounce(searchTerm, 300);
+
   React.useEffect(() => {
     let isMounted = true;
     const fetchStores = async () => {
       try {
         const data = await storesApi.getStores({
           zone: selectedZone !== 'all' ? selectedZone : undefined,
-          search: searchTerm.trim() || undefined,
+          search: debouncedSearch.trim() || undefined,
         });
         if (isMounted && data && Array.isArray(data)) {
           const mapped = data.map((s, idx) => ({
@@ -86,7 +89,7 @@ export const StoresPage = () => {
     return () => {
       isMounted = false;
     };
-  }, [selectedZone, searchTerm]);
+  }, [selectedZone, debouncedSearch]);
 
   const filteredStores = stores.filter((store) => {
     const matchesSearch =

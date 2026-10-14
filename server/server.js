@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 require('dotenv').config();
 
 const apiRoutes = require('./routes');
@@ -10,6 +11,7 @@ const PORT = process.env.PORT || 5000;
 
 // Security & Headers
 app.use(helmet());
+app.use(compression());
 
 // CORS restricted to client origin
 const allowedOrigins = [
