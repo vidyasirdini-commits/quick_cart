@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Store, MapPin, UserPlus } from 'lucide-react';
+import { User, Mail, Lock, Store, MapPin, UserPlus, Eye, EyeOff, ShoppingBag } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { Button, Input, Select } from '../components';
@@ -11,10 +11,12 @@ export const RegisterPage = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'customer',
+    role: 'customer', // 'customer' or 'partner'
     storeName: '',
     zone: '1',
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -36,7 +38,7 @@ export const RegisterPage = () => {
     if (!formData.email.trim()) {
       newErrors.email = 'Email address is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please provide a valid email';
+      newErrors.email = 'Please provide a valid email format';
     }
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -48,7 +50,10 @@ export const RegisterPage = () => {
     }
     if (formData.role === 'partner') {
       if (!formData.storeName.trim()) {
-        newErrors.storeName = 'Store name is required for partners';
+        newErrors.storeName = 'Store name is required for store partners';
+      }
+      if (!formData.zone) {
+        newErrors.zone = 'Please assign a delivery zone for your store';
       }
     }
     setErrors(newErrors);
@@ -84,12 +89,13 @@ export const RegisterPage = () => {
           email: formData.email,
           role: formData.role,
           storeName: formData.storeName,
+          zone_id: formData.zone,
         };
-        token = 'sample_auth_token';
+        token = 'sample_auth_jwt_token';
       }
 
       login(userData, token);
-      toast.success('Account created successfully!');
+      toast.success('Registration successful! Welcome to QuickCart.');
 
       if (formData.role === 'partner') {
         navigate('/partner/dashboard');
@@ -107,40 +113,48 @@ export const RegisterPage = () => {
     <div className="space-y-6">
       <div className="text-center">
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Create your account</h2>
-        <p className="text-xs text-slate-500 mt-1">Join QuickCart as a customer or local store partner</p>
+        <p className="text-xs text-slate-500 mt-1">
+          Join QuickCart as a customer or local store merchant
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Role Picker */}
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+        {/* Role Selector */}
         <div>
           <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-2">
-            I am joining as a:
+            Select Your Account Role:
           </label>
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
               onClick={() => setFormData((p) => ({ ...p, role: 'customer' }))}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`p-3.5 rounded-xl border text-left transition-all ${
                 formData.role === 'customer'
-                  ? 'border-primary-600 bg-primary-50/50 ring-2 ring-primary-500/20'
+                  ? 'border-primary-600 bg-primary-50/70 ring-2 ring-primary-500/20'
                   : 'border-slate-200 hover:border-slate-300 bg-white'
               }`}
             >
-              <span className="block text-sm font-bold text-slate-900">Shopper</span>
-              <span className="block text-[11px] text-slate-500 mt-0.5">Order from local stores</span>
+              <div className="flex items-center gap-2 mb-1">
+                <ShoppingBag className="h-4 w-4 text-primary-600" />
+                <span className="font-bold text-sm text-slate-900">Customer</span>
+              </div>
+              <span className="block text-[11px] text-slate-500">Order from neighborhood stores</span>
             </button>
 
             <button
               type="button"
               onClick={() => setFormData((p) => ({ ...p, role: 'partner' }))}
-              className={`p-3 rounded-xl border text-left transition-all ${
+              className={`p-3.5 rounded-xl border text-left transition-all ${
                 formData.role === 'partner'
-                  ? 'border-primary-600 bg-primary-50/50 ring-2 ring-primary-500/20'
+                  ? 'border-accent-600 bg-amber-50/70 ring-2 ring-amber-500/20'
                   : 'border-slate-200 hover:border-slate-300 bg-white'
               }`}
             >
-              <span className="block text-sm font-bold text-slate-900">Store Partner</span>
-              <span className="block text-[11px] text-slate-500 mt-0.5">Manage stock & orders</span>
+              <div className="flex items-center gap-2 mb-1">
+                <Store className="h-4 w-4 text-accent-600" />
+                <span className="font-bold text-sm text-slate-900">Store Partner</span>
+              </div>
+              <span className="block text-[11px] text-slate-500">Manage catalog & fulfill dispatches</span>
             </button>
           </div>
         </div>
@@ -154,6 +168,7 @@ export const RegisterPage = () => {
           onChange={handleChange}
           error={errors.name}
           leftIcon={<User className="h-4 w-4" />}
+          autoComplete="name"
           required
         />
 
@@ -167,13 +182,20 @@ export const RegisterPage = () => {
           onChange={handleChange}
           error={errors.email}
           leftIcon={<Mail className="h-4 w-4" />}
+          autoComplete="email"
           required
         />
 
+        {/* Store Partner Fields */}
         {formData.role === 'partner' && (
-          <>
+          <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-3.5 animate-in fade-in duration-200">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+              <Store className="h-4 w-4 text-amber-600" />
+              <span>Merchant Details</span>
+            </div>
+
             <Input
-              label="Store Name"
+              label="Store / Business Name"
               id="storeName"
               name="storeName"
               placeholder="e.g. Green Grocers Downtown"
@@ -185,11 +207,12 @@ export const RegisterPage = () => {
             />
 
             <Select
-              label="Delivery Zone"
+              label="Assigned Delivery Zone"
               id="zone"
               name="zone"
               value={formData.zone}
               onChange={handleChange}
+              error={errors.zone}
               options={[
                 { value: '1', label: 'Zone 1: Central District' },
                 { value: '2', label: 'Zone 2: North Sector' },
@@ -197,34 +220,60 @@ export const RegisterPage = () => {
               ]}
               required
             />
-          </>
+          </div>
         )}
 
-        <Input
-          label="Password"
-          id="password"
-          name="password"
-          type="password"
-          placeholder="At least 6 characters"
-          value={formData.password}
-          onChange={handleChange}
-          error={errors.password}
-          leftIcon={<Lock className="h-4 w-4" />}
-          required
-        />
+        <div className="relative">
+          <Input
+            label="Password"
+            id="password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="At least 6 characters"
+            value={formData.password}
+            onChange={handleChange}
+            error={errors.password}
+            leftIcon={<Lock className="h-4 w-4" />}
+            autoComplete="new-password"
+            rightIcon={
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="text-slate-400 hover:text-slate-600 focus:outline-none"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
+            required
+          />
+        </div>
 
-        <Input
-          label="Confirm Password"
-          id="confirmPassword"
-          name="confirmPassword"
-          type="password"
-          placeholder="Re-enter password"
-          value={formData.confirmPassword}
-          onChange={handleChange}
-          error={errors.confirmPassword}
-          leftIcon={<Lock className="h-4 w-4" />}
-          required
-        />
+        <div className="relative">
+          <Input
+            label="Confirm Password"
+            id="confirmPassword"
+            name="confirmPassword"
+            type={showConfirmPassword ? 'text' : 'password'}
+            placeholder="Re-enter password"
+            value={formData.confirmPassword}
+            onChange={handleChange}
+            error={errors.confirmPassword}
+            leftIcon={<Lock className="h-4 w-4" />}
+            autoComplete="new-password"
+            rightIcon={
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="text-slate-400 hover:text-slate-600 focus:outline-none"
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
+            required
+          />
+        </div>
 
         <Button
           type="submit"
@@ -234,7 +283,7 @@ export const RegisterPage = () => {
           isLoading={loading}
           rightIcon={<UserPlus className="h-4 w-4" />}
         >
-          Create Account
+          Create {formData.role === 'partner' ? 'Partner Account' : 'Customer Account'}
         </Button>
       </form>
 

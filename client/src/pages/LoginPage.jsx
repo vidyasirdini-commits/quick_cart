@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Mail, Lock, LogIn, ArrowRight } from 'lucide-react';
+import { Mail, Lock, LogIn, Eye, EyeOff, Shield, Store, Truck, ShoppingCart } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { Button, Input } from '../components';
@@ -10,6 +10,7 @@ export const LoginPage = () => {
     email: '',
     password: '',
   });
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
@@ -31,7 +32,7 @@ export const LoginPage = () => {
     if (!formData.email.trim()) {
       newErrors.email = 'Email address is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please provide a valid email';
+      newErrors.email = 'Please provide a valid email format';
     }
     if (!formData.password) {
       newErrors.password = 'Password is required';
@@ -46,7 +47,6 @@ export const LoginPage = () => {
 
     setLoading(true);
     try {
-      // In Phase 1 & 2 before backend API integration, or if API available
       let res;
       try {
         const response = await fetch('/api/auth/login', {
@@ -72,7 +72,7 @@ export const LoginPage = () => {
         if (emailLower.includes('admin')) {
           role = 'admin';
           name = 'Admin Manager';
-        } else if (emailLower.includes('partner') || emailLower.includes('store')) {
+        } else if (emailLower.includes('partner') || emailLower.includes('store') || emailLower.includes('bakery') || emailLower.includes('pharmacy')) {
           role = 'partner';
           name = 'Store Partner';
         } else if (emailLower.includes('delivery')) {
@@ -81,18 +81,19 @@ export const LoginPage = () => {
         }
 
         userData = {
-          id: 'mock-user-1',
+          id: 'user-' + Date.now(),
           name,
           email: formData.email,
           role,
         };
-        token = 'mock_jwt_token_sample';
+        token = 'mock_jwt_token_quickcart';
       }
 
       login(userData, token);
       toast.success(`Welcome back, ${userData.name}!`);
 
-      // Redirect by role
+      // Strict role-based redirects as specified in requirements:
+      // customer -> /stores, partner -> /partner/dashboard, admin -> /admin/dashboard, delivery -> /delivery/tasks
       const roleRedirects = {
         customer: '/stores',
         partner: '/partner/dashboard',
@@ -104,10 +105,16 @@ export const LoginPage = () => {
         location.state?.from?.pathname || roleRedirects[userData.role] || '/stores';
       navigate(redirectPath, { replace: true });
     } catch (err) {
-      toast.error(err.message || 'Authentication failed. Please check your credentials.');
+      toast.error(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const fillDemoCredentials = (role, email, name) => {
+    setFormData({ email, password: 'password123' });
+    setErrors({});
+    toast.info(`Loaded demo credentials for ${role}`);
   };
 
   return (
@@ -115,11 +122,11 @@ export const LoginPage = () => {
       <div className="text-center">
         <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Sign in to QuickCart</h2>
         <p className="text-xs text-slate-500 mt-1">
-          Access your hyperlocal ordering or store partner workspace
+          Access your hyperlocal ordering or operational workspace
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         <Input
           label="Email Address"
           id="email"
@@ -130,21 +137,35 @@ export const LoginPage = () => {
           onChange={handleChange}
           error={errors.email}
           leftIcon={<Mail className="h-4 w-4" />}
+          autoComplete="email"
           required
         />
 
-        <Input
-          label="Password"
-          id="password"
-          name="password"
-          type="password"
-          placeholder="••••••••"
-          value={formData.password}
-          onChange={handleChange}
-          error={errors.password}
-          leftIcon={<Lock className="h-4 w-4" />}
-          required
-        />
+        <div className="relative">
+          <Input
+            label="Password"
+            id="password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            placeholder="••••••••"
+            value={formData.password}
+            onChange={handleChange}
+            error={errors.password}
+            leftIcon={<Lock className="h-4 w-4" />}
+            autoComplete="current-password"
+            rightIcon={
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="text-slate-400 hover:text-slate-600 focus:outline-none"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            }
+            required
+          />
+        </div>
 
         <Button
           type="submit"
@@ -158,37 +179,58 @@ export const LoginPage = () => {
         </Button>
       </form>
 
-      {/* Quick Role Fillers for quick testing */}
-      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 text-xs">
-        <p className="font-semibold text-slate-700 mb-1.5 text-center">Quick Demo Credentials:</p>
-        <div className="grid grid-cols-2 gap-1 text-[11px]">
+      {/* Quick Demo Credentials Switcher */}
+      <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 text-xs">
+        <p className="font-semibold text-slate-700 mb-2 text-center">
+          One-Click Demo Credentials:
+        </p>
+        <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
-            onClick={() => setFormData({ email: 'admin@quickcart.com', password: 'password123' })}
-            className="text-left p-1 rounded hover:bg-white text-slate-600 hover:text-slate-900 truncate"
+            onClick={() => fillDemoCredentials('Customer', 'customer@quickcart.com', 'Sarah Customer')}
+            className="flex items-center gap-1.5 p-2 rounded-lg bg-white hover:bg-primary-50 border border-slate-200 hover:border-primary-300 text-slate-700 transition-colors text-left"
           >
-            🛡️ admin@quickcart.com
+            <ShoppingCart className="h-3.5 w-3.5 text-primary-600 shrink-0" />
+            <div className="truncate">
+              <span className="block font-semibold text-[11px] text-slate-900 leading-none">Customer</span>
+              <span className="text-[10px] text-slate-400">customer@quickcart.com</span>
+            </div>
           </button>
+
           <button
             type="button"
-            onClick={() => setFormData({ email: 'partner@quickcart.com', password: 'password123' })}
-            className="text-left p-1 rounded hover:bg-white text-slate-600 hover:text-slate-900 truncate"
+            onClick={() => fillDemoCredentials('Store Partner', 'partner@quickcart.com', 'Rajesh Gupta')}
+            className="flex items-center gap-1.5 p-2 rounded-lg bg-white hover:bg-amber-50 border border-slate-200 hover:border-amber-300 text-slate-700 transition-colors text-left"
           >
-            🏪 partner@quickcart.com
+            <Store className="h-3.5 w-3.5 text-accent-600 shrink-0" />
+            <div className="truncate">
+              <span className="block font-semibold text-[11px] text-slate-900 leading-none">Store Partner</span>
+              <span className="text-[10px] text-slate-400">partner@quickcart.com</span>
+            </div>
           </button>
+
           <button
             type="button"
-            onClick={() => setFormData({ email: 'delivery@quickcart.com', password: 'password123' })}
-            className="text-left p-1 rounded hover:bg-white text-slate-600 hover:text-slate-900 truncate"
+            onClick={() => fillDemoCredentials('Delivery Executive', 'delivery@quickcart.com', 'Ravi Courier')}
+            className="flex items-center gap-1.5 p-2 rounded-lg bg-white hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 transition-colors text-left"
           >
-            🛵 delivery@quickcart.com
+            <Truck className="h-3.5 w-3.5 text-info-600 shrink-0" />
+            <div className="truncate">
+              <span className="block font-semibold text-[11px] text-slate-900 leading-none">Delivery Exec</span>
+              <span className="text-[10px] text-slate-400">delivery@quickcart.com</span>
+            </div>
           </button>
+
           <button
             type="button"
-            onClick={() => setFormData({ email: 'customer@quickcart.com', password: 'password123' })}
-            className="text-left p-1 rounded hover:bg-white text-slate-600 hover:text-slate-900 truncate"
+            onClick={() => fillDemoCredentials('Administrator', 'admin@quickcart.com', 'Admin User')}
+            className="flex items-center gap-1.5 p-2 rounded-lg bg-white hover:bg-red-50 border border-slate-200 hover:border-red-300 text-slate-700 transition-colors text-left"
           >
-            🛒 customer@quickcart.com
+            <Shield className="h-3.5 w-3.5 text-danger-600 shrink-0" />
+            <div className="truncate">
+              <span className="block font-semibold text-[11px] text-slate-900 leading-none">Admin</span>
+              <span className="text-[10px] text-slate-400">admin@quickcart.com</span>
+            </div>
           </button>
         </div>
       </div>
