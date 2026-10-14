@@ -202,8 +202,10 @@ const getMe = async (req, res, next) => {
       return errorResponse(res, 'User not found', 404);
     }
 
+    const sanitized = sanitizeUser(user, store);
     return successResponse(res, {
-      user: sanitizeUser(user, store),
+      ...sanitized,
+      user: sanitized,
     });
   } catch (error) {
     next(error);
