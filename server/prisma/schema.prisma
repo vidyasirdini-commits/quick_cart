@@ -48,6 +48,7 @@ model User {
   password_hash String
   role          Role     @default(customer)
   zone_id       String?
+  is_active     Boolean  @default(true)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
 

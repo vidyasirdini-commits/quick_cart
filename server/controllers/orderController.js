@@ -446,7 +446,10 @@ const updateOrderStatus = async (req, res, next) => {
     }
 
     if (role === 'delivery' || role === 'admin') {
-      if (currentStatus === 'out_for_delivery' && targetStatus === 'delivered') {
+      if (currentStatus === 'packed' && targetStatus === 'out_for_delivery') {
+        isAllowed = true;
+        assignedCourierId = userId;
+      } else if (currentStatus === 'out_for_delivery' && targetStatus === 'delivered') {
         isAllowed = true;
         if (!assignedCourierId) assignedCourierId = userId;
       }
