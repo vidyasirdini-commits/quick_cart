@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Download, Search, Filter, CreditCard } from 'lucide-react';
+import { Download, Search, Calendar, Store, Filter } from 'lucide-react';
 import { DataTable, Button, Input, Select, Badge } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
@@ -34,7 +34,7 @@ const INITIAL_TRANSACTIONS = [
   },
   {
     id: 'ord-518290',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 26).toISOString(),
     customer: 'Michael Chang',
     store_name: 'Organic Roots Farm Store',
     zone: 'West Hills',
@@ -43,7 +43,7 @@ const INITIAL_TRANSACTIONS = [
   },
   {
     id: 'ord-402911',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(),
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
     customer: 'Priya Sharma',
     store_name: 'Fresh Basket Supermarket',
     zone: 'Central District',
@@ -52,7 +52,7 @@ const INITIAL_TRANSACTIONS = [
   },
   {
     id: 'ord-391024',
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 22).toISOString(),
+    created_at: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
     customer: 'James Wilson',
     store_name: 'Artisan Daily Bakery',
     zone: 'Central District',
@@ -65,7 +65,9 @@ export const AdminTransactionsPage = () => {
   const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedZone, setSelectedZone] = useState('all');
+  const [selectedStore, setSelectedStore] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
+  const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'week', 'month'
   const toast = useToast();
 
   const filteredTransactions = transactions.filter((t) => {
@@ -73,9 +75,24 @@ export const AdminTransactionsPage = () => {
       t.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
       t.store_name.toLowerCase().includes(searchTerm.toLowerCase());
+
     const matchesZone = selectedZone === 'all' || t.zone === selectedZone;
+    const matchesStore = selectedStore === 'all' || t.store_name === selectedStore;
     const matchesStatus = selectedStatus === 'all' || t.status === selectedStatus;
-    return matchesSearch && matchesZone && matchesStatus;
+
+    let matchesDate = true;
+    const orderDate = new Date(t.created_at).getTime();
+    const now = Date.now();
+
+    if (dateFilter === 'today') {
+      matchesDate = now - orderDate <= 1000 * 60 * 60 * 24;
+    } else if (dateFilter === 'week') {
+      matchesDate = now - orderDate <= 1000 * 60 * 60 * 24 * 7;
+    } else if (dateFilter === 'month') {
+      matchesDate = now - orderDate <= 1000 * 60 * 60 * 24 * 30;
+    }
+
+    return matchesSearch && matchesZone && matchesStore && matchesStatus && matchesDate;
   });
 
   const exportToCSV = () => {
@@ -96,7 +113,10 @@ export const AdminTransactionsPage = () => {
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `quickcart_transactions_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute(
+      'download',
+      `quickcart_transactions_${new Date().toISOString().slice(0, 10)}.csv`
+    );
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -155,7 +175,7 @@ export const AdminTransactionsPage = () => {
             Transaction Ledger & Audits
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Complete financial records, payment logs, and zone fulfillment transactions.
+            Filterable historical orders, zone receipts, payment sums, and CSV ledger export.
           </p>
         </div>
 
@@ -164,23 +184,39 @@ export const AdminTransactionsPage = () => {
           onClick={exportToCSV}
           leftIcon={<Download className="h-4 w-4" />}
         >
-          Export CSV
+          Export CSV ({filteredTransactions.length})
         </Button>
       </div>
 
-      {/* Filters Bar */}
-      <div className="flex flex-col lg:flex-row items-center justify-between gap-3 bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs">
-        <div className="w-full lg:w-72">
-          <Input
-            placeholder="Search order ID, store, customer..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            leftIcon={<Search className="h-4 w-4" />}
-          />
-        </div>
+      {/* Comprehensive Filters Bar (Date, Zone, Store, Status) */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200/80 shadow-xs space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          {/* Search */}
+          <div className="lg:col-span-1">
+            <Input
+              placeholder="Search ID, customer..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              leftIcon={<Search className="h-4 w-4" />}
+            />
+          </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
-          <div className="w-full sm:w-48">
+          {/* Date Filter */}
+          <div>
+            <Select
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Dates' },
+                { value: 'today', label: 'Past 24 Hours' },
+                { value: 'week', label: 'Last 7 Days' },
+                { value: 'month', label: 'Last 30 Days' },
+              ]}
+            />
+          </div>
+
+          {/* Zone Filter */}
+          <div>
             <Select
               value={selectedZone}
               onChange={(e) => setSelectedZone(e.target.value)}
@@ -193,7 +229,23 @@ export const AdminTransactionsPage = () => {
             />
           </div>
 
-          <div className="w-full sm:w-48">
+          {/* Store Filter */}
+          <div>
+            <Select
+              value={selectedStore}
+              onChange={(e) => setSelectedStore(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Stores' },
+                { value: 'Fresh Basket Supermarket', label: 'Fresh Basket' },
+                { value: 'Artisan Daily Bakery', label: 'Artisan Bakery' },
+                { value: 'City Care Pharmacy', label: 'City Care Pharmacy' },
+                { value: 'Organic Roots Farm Store', label: 'Organic Roots' },
+              ]}
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div>
             <Select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
