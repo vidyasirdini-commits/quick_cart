@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { Button, Input, Card } from '../components';
 import { formatCurrency } from '../utils';
+import { ordersApi } from '../services';
 
 export const CheckoutPage = () => {
   const { store, items, subtotal, clearCart } = useCart();
@@ -38,26 +39,17 @@ export const CheckoutPage = () => {
       const orderPayload = {
         store_id: store?.id || 'store-1',
         delivery_address: `${deliveryAddress.street}, ${deliveryAddress.city} - ${deliveryAddress.zip}. Notes: ${deliveryAddress.instructions}`,
-        items: items.map((i) => ({ product_id: i.id, qty: i.qty, unit_price: i.price })),
-        total,
+        items: items.map((i) => ({ product_id: i.id, qty: i.qty })),
       };
 
-      let newOrderId;
+      let newOrderId = null;
       try {
-        const response = await fetch('/api/orders', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('quickcart_token')}`,
-          },
-          body: JSON.stringify(orderPayload),
-        });
-        const res = await response.json();
-        if (res.success) {
-          newOrderId = res.data.id;
-        }
-      } catch {
-        newOrderId = null;
+        const orderResult = await ordersApi.createOrder(orderPayload);
+        newOrderId = orderResult?.id || orderResult?.order?.id;
+      } catch (apiErr) {
+        toast.error(apiErr.message || 'Failed to place order.');
+        setLoading(false);
+        return;
       }
 
       if (!newOrderId) {

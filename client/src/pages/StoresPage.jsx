@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Store, MapPin, Search, ArrowRight, Clock } from 'lucide-react';
 import { Card, Badge, Input, Select, Button } from '../components';
+import { storesApi } from '../services';
 
-// Initial mock stores matching later seed data
+// Initial mock stores matching seed data as graceful fallback
 const INITIAL_STORES = [
   {
     id: 'store-1',
     name: 'Fresh Basket Supermarket',
-    zone_id: '1',
+    zone_id: 'zone-1',
     zone_name: 'Zone 1: Central District',
     is_open: true,
     category: 'Groceries & Produce',
@@ -20,7 +21,7 @@ const INITIAL_STORES = [
   {
     id: 'store-2',
     name: 'Artisan Daily Bakery',
-    zone_id: '1',
+    zone_id: 'zone-1',
     zone_name: 'Zone 1: Central District',
     is_open: true,
     category: 'Bakery & Snacks',
@@ -31,8 +32,8 @@ const INITIAL_STORES = [
   },
   {
     id: 'store-3',
-    name: 'City Care Pharmacy',
-    zone_id: '2',
+    name: 'City Care Essentials & Pharmacy',
+    zone_id: 'zone-2',
     zone_name: 'Zone 2: North Sector',
     is_open: true,
     category: 'Health & Essentials',
@@ -41,29 +42,60 @@ const INITIAL_STORES = [
     image: 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&w=600&q=80',
     product_count: 32,
   },
-  {
-    id: 'store-4',
-    name: 'Organic Roots Farm Store',
-    zone_id: '3',
-    zone_name: 'Zone 3: West Hills',
-    is_open: false,
-    category: 'Organic Fruits & Veggies',
-    rating: 4.6,
-    delivery_time: '25-40 min',
-    image: 'https://images.unsplash.com/photo-1610348725531-843dff563e2c?auto=format&fit=crop&w=600&q=80',
-    product_count: 15,
-  },
 ];
 
 export const StoresPage = () => {
+  const [stores, setStores] = useState(INITIAL_STORES);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedZone, setSelectedZone] = useState('all');
+  const [loading, setLoading] = useState(true);
 
-  const filteredStores = INITIAL_STORES.filter((store) => {
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchStores = async () => {
+      try {
+        const data = await storesApi.getStores({
+          zone: selectedZone !== 'all' ? selectedZone : undefined,
+          search: searchTerm.trim() || undefined,
+        });
+        if (isMounted && data && Array.isArray(data)) {
+          const mapped = data.map((s, idx) => ({
+            id: s.id,
+            name: s.name,
+            zone_id: s.zone_id,
+            zone_name: s.zone?.name || `Zone: ${s.zone_id}`,
+            is_open: s.is_open !== false,
+            category: s.category || (idx % 2 === 0 ? 'Groceries & Produce' : 'Bakery & Pantry'),
+            delivery_time: '15-25 min',
+            image:
+              s.image ||
+              (idx % 2 === 0
+                ? 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'
+                : 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=600&q=80'),
+            product_count: s.products?.length || s._count?.products || 12,
+          }));
+          setStores(mapped);
+        }
+      } catch {
+        // Fallback to initial
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchStores();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedZone, searchTerm]);
+
+  const filteredStores = stores.filter((store) => {
     const matchesSearch =
       store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      store.category.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesZone = selectedZone === 'all' || store.zone_id === selectedZone;
+      (store.category && store.category.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesZone =
+      selectedZone === 'all' ||
+      store.zone_id === selectedZone ||
+      (store.zone_id && store.zone_id.includes(selectedZone));
     return matchesSearch && matchesZone;
   });
 

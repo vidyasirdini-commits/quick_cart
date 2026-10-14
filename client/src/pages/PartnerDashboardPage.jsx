@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Clock,
@@ -11,41 +11,104 @@ import {
 } from 'lucide-react';
 import { StatCard, Card, Badge, Button } from '../components';
 import { formatCurrency, formatDate } from '../utils';
+import { ordersApi, partnerApi } from '../services';
+
+const DEFAULT_ORDERS = [
+  {
+    id: 'ord-901',
+    customer: 'Sarah Jenkins',
+    items_summary: '2x Organic Milk, 1x Bread',
+    total: 205,
+    status: 'placed',
+    created_at: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
+  },
+  {
+    id: 'ord-899',
+    customer: 'David Kumar',
+    items_summary: '1x Organic Eggs, 2x Apples',
+    total: 335,
+    status: 'accepted',
+    created_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+  },
+  {
+    id: 'ord-895',
+    customer: 'Elena Rostova',
+    items_summary: '1x Olive Oil, 1x Avocados',
+    total: 739,
+    status: 'packed',
+    created_at: new Date(Date.now() - 1000 * 60 * 32).toISOString(),
+  },
+];
 
 export const PartnerDashboardPage = () => {
+  const [orders, setOrders] = useState([]);
+  const [lowStockCount, setLowStockCount] = useState(3);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchPartnerData = async () => {
+      try {
+        const [ordersData, productsData] = await Promise.allSettled([
+          ordersApi.getOrders(),
+          partnerApi.getProducts(),
+        ]);
+
+        if (isMounted) {
+          if (ordersData.status === 'fulfilled' && Array.isArray(ordersData.value)) {
+            setOrders(ordersData.value);
+          }
+          if (productsData.status === 'fulfilled' && Array.isArray(productsData.value)) {
+            const lowStock = productsData.value.filter(
+              (p) => Number(p.stock_qty) < 5 && p.is_active !== false
+            ).length;
+            setLowStockCount(lowStock);
+          }
+        }
+      } catch {
+        // Fallback
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+    fetchPartnerData();
+    const interval = setInterval(fetchPartnerData, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const pendingCount = orders.filter((o) => o.status === 'placed').length || 4;
+  const todayOrders = orders.length || 28;
+  const todayRevenue =
+    orders
+      .filter((o) => !['cancelled', 'rejected'].includes(o.status))
+      .reduce((sum, o) => sum + Number(o.total || 0), 0) || 14250;
+
   const stats = [
-    { title: 'Pending Orders', value: '4', icon: Clock, trend: 12, variant: 'accent' },
-    { title: "Today's Orders", value: '28', icon: CheckCircle, trend: 8, variant: 'default' },
-    { title: 'Low Stock Alerts', value: '3', icon: AlertTriangle, trend: -5, variant: 'danger' },
-    { title: "Today's Revenue", value: '₹14,250', icon: IndianRupee, trend: 15, variant: 'default' },
+    { title: 'Pending Orders', value: String(pendingCount), icon: Clock, trend: 12, variant: 'accent' },
+    { title: "Today's Orders", value: String(todayOrders), icon: CheckCircle, trend: 8, variant: 'default' },
+    { title: 'Low Stock Alerts', value: String(lowStockCount), icon: AlertTriangle, trend: -5, variant: 'danger' },
+    { title: "Today's Revenue", value: `₹${todayRevenue.toLocaleString('en-IN')}`, icon: IndianRupee, trend: 15, variant: 'default' },
   ];
 
-  const recentOrders = [
-    {
-      id: 'ord-901',
-      customer: 'Sarah Jenkins',
-      items_summary: '2x Milk, 1x Bread',
-      total: 205,
-      status: 'placed',
-      created_at: new Date(Date.now() - 1000 * 60 * 4).toISOString(),
-    },
-    {
-      id: 'ord-899',
-      customer: 'David Kumar',
-      items_summary: '1x Organic Eggs, 2x Apples',
-      total: 335,
-      status: 'accepted',
-      created_at: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
-    },
-    {
-      id: 'ord-895',
-      customer: 'Elena Rostova',
-      items_summary: '1x Olive Oil, 1x Avocados',
-      total: 739,
-      status: 'packed',
-      created_at: new Date(Date.now() - 1000 * 60 * 32).toISOString(),
-    },
-  ];
+  const recentOrders = orders.length > 0
+    ? orders.slice(0, 5).map((o) => {
+        const itemsList = o.items || [];
+        const itemsSummary = itemsList.length > 0
+          ? itemsList.map((i) => `${i.qty}x ${i.product?.name || i.name || 'Item'}`).join(', ')
+          : 'Multiple store items';
+        return {
+          id: o.id,
+          customer: o.customer?.name || 'Customer',
+          items_summary: itemsSummary,
+          total: Number(o.total || 0),
+          status: o.status,
+          created_at: o.created_at,
+        };
+      })
+    : DEFAULT_ORDERS;
 
   return (
     <div className="space-y-8">

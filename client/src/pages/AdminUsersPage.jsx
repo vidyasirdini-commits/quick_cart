@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, UserCheck, UserX, Shield } from 'lucide-react';
 import { DataTable, Button, Input, Select, Badge } from '../components';
 import { useToast } from '../components/Toast';
 import { formatDate } from '../utils';
+import { adminApi } from '../services';
 
 const INITIAL_USERS = [
   {
@@ -58,17 +59,46 @@ export const AdminUsersPage = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const toast = useToast();
 
-  const handleToggleUserStatus = (userId) => {
-    setUsers((prev) =>
-      prev.map((u) => {
-        if (u.id === userId) {
-          const newStatus = !u.is_active;
-          toast.info(`User ${u.name} is now ${newStatus ? 'Active' : 'Deactivated'}`);
-          return { ...u, is_active: newStatus };
+  useEffect(() => {
+    let isMounted = true;
+    const fetchUsers = async () => {
+      try {
+        const data = await adminApi.getUsers({
+          role: roleFilter !== 'all' ? roleFilter : undefined,
+          search: searchTerm.trim() || undefined,
+        });
+        if (isMounted && data && Array.isArray(data) && data.length > 0) {
+          setUsers(data);
         }
-        return u;
-      })
+      } catch {
+        // Fallback
+      }
+    };
+    fetchUsers();
+    return () => {
+      isMounted = false;
+    };
+  }, [roleFilter, searchTerm]);
+
+  const handleToggleUserStatus = async (userId) => {
+    const userToToggle = users.find((u) => u.id === userId);
+    if (!userToToggle) return;
+
+    const newStatus = !userToToggle.is_active;
+    setUsers((prev) =>
+      prev.map((u) => (u.id === userId ? { ...u, is_active: newStatus } : u))
     );
+
+    try {
+      await adminApi.toggleUserActive(userId);
+      toast.info(`User ${userToToggle.name} is now ${newStatus ? 'Active' : 'Deactivated'}`);
+    } catch (err) {
+      toast.error(err.message || 'Status toggle failed');
+      // Revert if error
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, is_active: !newStatus } : u))
+      );
+    }
   };
 
   const filteredUsers = users.filter((u) => {

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download, Search, Calendar, Store, Filter } from 'lucide-react';
 import { DataTable, Button, Input, Select, Badge } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
+import { adminApi } from '../services';
 
 const INITIAL_TRANSACTIONS = [
   {
@@ -69,6 +70,30 @@ export const AdminTransactionsPage = () => {
   const [selectedStatus, setSelectedStatus] = useState('all');
   const [dateFilter, setDateFilter] = useState('all'); // 'all', 'today', 'week', 'month'
   const toast = useToast();
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTx = async () => {
+      try {
+        const data = await adminApi.getTransactions({
+          date: dateFilter,
+          zone: selectedZone !== 'all' ? selectedZone : undefined,
+          store: selectedStore !== 'all' ? selectedStore : undefined,
+          status: selectedStatus !== 'all' ? selectedStatus : undefined,
+          search: searchTerm.trim() || undefined,
+        });
+        if (isMounted && data && Array.isArray(data.transactions) && data.transactions.length > 0) {
+          setTransactions(data.transactions);
+        }
+      } catch {
+        // Fallback
+      }
+    };
+    fetchTx();
+    return () => {
+      isMounted = false;
+    };
+  }, [dateFilter, selectedZone, selectedStore, selectedStatus, searchTerm]);
 
   const filteredTransactions = transactions.filter((t) => {
     const matchesSearch =

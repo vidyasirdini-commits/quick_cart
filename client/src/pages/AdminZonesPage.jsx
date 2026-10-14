@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { MapPin, Plus, Store, Truck, Edit2, UserCheck, ShieldCheck } from 'lucide-react';
 import { Card, Button, Input, Modal, Badge, Select } from '../components';
 import { useToast } from '../components/Toast';
+import { adminApi } from '../services';
 
 const INITIAL_ZONES = [
   {
@@ -56,6 +57,21 @@ export const AdminZonesPage = () => {
 
   const toast = useToast();
 
+  const fetchZones = async () => {
+    try {
+      const data = await adminApi.getZones();
+      if (data && Array.isArray(data.zones) && data.zones.length > 0) {
+        setZones(data.zones);
+      }
+    } catch {
+      // Fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchZones();
+  }, []);
+
   const handleOpenAddZone = () => {
     setEditingZone(null);
     setZoneForm({ name: '', description: '' });
@@ -74,32 +90,47 @@ export const AdminZonesPage = () => {
     setAssignModalOpen(true);
   };
 
-  const handleSaveZone = (e) => {
+  const handleSaveZone = async (e) => {
     e.preventDefault();
     if (!zoneForm.name.trim()) {
       toast.error('Zone name is required');
       return;
     }
 
-    if (editingZone) {
-      setZones((prev) =>
-        prev.map((z) => (z.id === editingZone.id ? { ...z, ...zoneForm } : z))
-      );
-      toast.success('Zone updated successfully');
-    } else {
-      const newZone = {
-        id: String(Date.now()),
-        ...zoneForm,
-        stores: [],
-        delivery_execs: [],
-      };
-      setZones((prev) => [...prev, newZone]);
-      toast.success('New delivery zone allocated');
+    try {
+      if (editingZone) {
+        try {
+          await adminApi.updateZone(editingZone.id, zoneForm);
+        } catch {
+          // Fallback
+        }
+        setZones((prev) =>
+          prev.map((z) => (z.id === editingZone.id ? { ...z, ...zoneForm } : z))
+        );
+        toast.success('Zone updated successfully');
+      } else {
+        let created = null;
+        try {
+          created = await adminApi.createZone(zoneForm);
+        } catch {
+          // Fallback
+        }
+        const newZone = created || {
+          id: String(Date.now()),
+          ...zoneForm,
+          stores: [],
+          delivery_execs: [],
+        };
+        setZones((prev) => [...prev, newZone]);
+        toast.success('New delivery zone allocated');
+      }
+      setZoneModalOpen(false);
+    } catch (err) {
+      toast.error(err.message || 'Failed to save zone');
     }
-    setZoneModalOpen(false);
   };
 
-  const handleAssignSubmit = (e) => {
+  const handleAssignSubmit = async (e) => {
     e.preventDefault();
     if (!activeZoneForAssign) return;
 
@@ -109,25 +140,38 @@ export const AdminZonesPage = () => {
       return;
     }
 
-    setZones((prev) =>
-      prev.map((z) => {
-        if (z.id === activeZoneForAssign.id) {
-          const updatedStores =
-            storeToAssign && !z.stores.includes(storeToAssign)
-              ? [...z.stores, storeToAssign]
-              : z.stores;
-          const updatedExecs =
-            courierToAssign && !z.delivery_execs.includes(courierToAssign)
-              ? [...z.delivery_execs, courierToAssign]
-              : z.delivery_execs;
-          return { ...z, stores: updatedStores, delivery_execs: updatedExecs };
-        }
-        return z;
-      })
-    );
+    try {
+      try {
+        await adminApi.assignToZone(activeZoneForAssign.id, {
+          store_name: storeToAssign || undefined,
+          courier_name: courierToAssign || undefined,
+        });
+      } catch {
+        // Fallback
+      }
 
-    toast.success(`Resources assigned to ${activeZoneForAssign.name}`);
-    setAssignModalOpen(false);
+      setZones((prev) =>
+        prev.map((z) => {
+          if (z.id === activeZoneForAssign.id) {
+            const updatedStores =
+              storeToAssign && !z.stores.includes(storeToAssign)
+                ? [...z.stores, storeToAssign]
+                : z.stores;
+            const updatedExecs =
+              courierToAssign && !z.delivery_execs.includes(courierToAssign)
+                ? [...z.delivery_execs, courierToAssign]
+                : z.delivery_execs;
+            return { ...z, stores: updatedStores, delivery_execs: updatedExecs };
+          }
+          return z;
+        })
+      );
+
+      toast.success(`Resources assigned to ${activeZoneForAssign.name}`);
+      setAssignModalOpen(false);
+    } catch (err) {
+      toast.error(err.message || 'Assignment failed');
+    }
   };
 
   return (

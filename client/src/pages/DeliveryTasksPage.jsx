@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Truck, CheckCircle2, MapPin, Store, Phone, Clock, Navigation } from 'lucide-react';
 import { Card, Badge, Button, EmptyState } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
+import { ordersApi } from '../services';
 
 const INITIAL_TASKS = [
   {
@@ -48,15 +49,52 @@ export const DeliveryTasksPage = () => {
   const [activeTab, setActiveTab] = useState('active'); // 'active' or 'history'
   const toast = useToast();
 
-  const handleUpdateStatus = (taskId, newStatus) => {
+  useEffect(() => {
+    let isMounted = true;
+    const fetchTasks = async () => {
+      try {
+        const data = await ordersApi.getOrders();
+        if (isMounted && data && Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((ord) => ({
+            id: ord.id,
+            status: ord.status,
+            store_name: ord.store?.name || ord.store_name || 'Neighborhood Store',
+            pickup_address: ord.store?.name || 'Local Store Hub',
+            customer: ord.customer?.name || 'Customer',
+            phone: ord.customer?.phone || '+91 98765 43210',
+            delivery_address: ord.delivery_address,
+            total: Number(ord.total || 0),
+            items_count: ord.items?.length || 2,
+            created_at: ord.created_at,
+          }));
+          setTasks(mapped);
+        }
+      } catch {
+        // Fallback
+      }
+    };
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 10000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const handleUpdateStatus = async (taskId, newStatus) => {
     setTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t))
     );
 
-    if (newStatus === 'out_for_delivery') {
-      toast.info(`Task #${taskId} is now Out for Delivery`);
-    } else if (newStatus === 'delivered') {
-      toast.success(`Task #${taskId} marked as Delivered! Great job.`);
+    try {
+      await ordersApi.updateOrderStatus(taskId, { status: newStatus });
+      if (newStatus === 'out_for_delivery') {
+        toast.info(`Task #${taskId} is now Out for Delivery`);
+      } else if (newStatus === 'delivered') {
+        toast.success(`Task #${taskId} marked as Delivered! Great job.`);
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to update delivery status');
     }
   };
 

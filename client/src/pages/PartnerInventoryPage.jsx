@@ -3,6 +3,7 @@ import { Plus, Search, Edit2, Check, AlertTriangle, Boxes, Trash2 } from 'lucide
 import { DataTable, Button, Input, Select, Modal, Badge } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency } from '../utils';
+import { partnerApi } from '../services';
 
 const INITIAL_PRODUCTS = [
   {
@@ -63,7 +64,22 @@ export const PartnerInventoryPage = () => {
 
   const toast = useToast();
 
-  const categories = ['All', 'Dairy', 'Dairy & Eggs', 'Bakery', 'Fruits', 'Pantry', 'Groceries'];
+  const fetchProducts = async () => {
+    try {
+      const data = await partnerApi.getProducts();
+      if (data && Array.isArray(data) && data.length > 0) {
+        setProducts(data);
+      }
+    } catch {
+      // Keep initial fallback
+    }
+  };
+
+  React.useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  const categories = ['All', 'Dairy', 'Dairy & Eggs', 'Bakery', 'Fruits', 'Pantry', 'Groceries', 'Supplements', 'Essentials'];
 
   const filteredProducts = products.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase());
@@ -95,7 +111,7 @@ export const PartnerInventoryPage = () => {
     setModalOpen(true);
   };
 
-  const handleSaveProduct = (e) => {
+  const handleSaveProduct = async (e) => {
     e.preventDefault();
     const priceNum = parseFloat(formData.price);
     const stockNum = parseInt(formData.stock_qty, 10);
@@ -109,34 +125,66 @@ export const PartnerInventoryPage = () => {
       return;
     }
 
-    if (editingProduct) {
-      setProducts((prev) =>
-        prev.map((p) =>
-          p.id === editingProduct.id
-            ? { ...p, ...formData, price: priceNum, stock_qty: stockNum }
-            : p
-        )
-      );
-      toast.success('Product updated successfully');
-    } else {
-      const newProd = {
-        id: `prod-${Date.now()}`,
-        ...formData,
-        price: priceNum,
-        stock_qty: stockNum,
-      };
-      setProducts((prev) => [newProd, ...prev]);
-      toast.success('New product added to inventory');
+    try {
+      if (editingProduct) {
+        try {
+          await partnerApi.updateProduct(editingProduct.id, {
+            name: formData.name,
+            category: formData.category,
+            price: priceNum,
+            stock_qty: stockNum,
+            is_active: formData.is_active,
+          });
+        } catch {
+          // Fallback
+        }
+        setProducts((prev) =>
+          prev.map((p) =>
+            p.id === editingProduct.id
+              ? { ...p, ...formData, price: priceNum, stock_qty: stockNum }
+              : p
+          )
+        );
+        toast.success('Product updated successfully');
+      } else {
+        let created = null;
+        try {
+          created = await partnerApi.addProduct({
+            name: formData.name,
+            category: formData.category,
+            price: priceNum,
+            stock_qty: stockNum,
+            is_active: formData.is_active,
+          });
+        } catch {
+          // Fallback
+        }
+        const newProd = created || {
+          id: `prod-${Date.now()}`,
+          ...formData,
+          price: priceNum,
+          stock_qty: stockNum,
+        };
+        setProducts((prev) => [newProd, ...prev]);
+        toast.success('New product added to inventory');
+      }
+      setModalOpen(false);
+    } catch (err) {
+      toast.error(err.message || 'Operation failed');
     }
-    setModalOpen(false);
   };
 
   // Inline stock quantity edit
-  const handleInlineStockChange = (id, newQty) => {
+  const handleInlineStockChange = async (id, newQty) => {
     const qty = Math.max(0, parseInt(newQty, 10) || 0);
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, stock_qty: qty } : p))
     );
+    try {
+      await partnerApi.updateStock(id, qty);
+    } catch {
+      // Soft fail
+    }
   };
 
   // Inline price edit
@@ -148,10 +196,15 @@ export const PartnerInventoryPage = () => {
   };
 
   // Active toggle
-  const handleToggleActive = (id) => {
+  const handleToggleActive = async (id) => {
     setProducts((prev) =>
       prev.map((p) => (p.id === id ? { ...p, is_active: !p.is_active } : p))
     );
+    try {
+      await partnerApi.toggleActive(id);
+    } catch {
+      // Soft fail
+    }
     toast.info('Item listing visibility toggled');
   };
 

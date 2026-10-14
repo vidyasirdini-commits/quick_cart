@@ -15,8 +15,9 @@ import { useCart } from '../context/CartContext';
 import { useToast } from '../components/Toast';
 import { Button, Input, Badge, Card } from '../components';
 import { formatCurrency } from '../utils';
+import { storesApi } from '../services';
 
-// Sample product catalog for the store
+// Sample product catalog for the store fallback
 const SAMPLE_PRODUCTS = [
   {
     id: 'prod-1',
@@ -82,18 +83,51 @@ export const StoreDetailsPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [inStockOnly, setInStockOnly] = useState(false);
-
-  // Store metadata
-  const currentStore = {
+  const [products, setProducts] = useState(SAMPLE_PRODUCTS);
+  const [currentStore, setCurrentStore] = useState({
     id: id || 'store-1',
     name: 'Fresh Basket Supermarket',
     zone_name: 'Zone 1: Central District',
     is_open: true,
-  };
+  });
 
-  const categories = ['All', 'Dairy', 'Dairy & Eggs', 'Bakery', 'Fruits', 'Pantry'];
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchStoreAndProducts = async () => {
+      try {
+        if (id) {
+          const storeData = await storesApi.getStoreById(id);
+          if (isMounted && storeData) {
+            setCurrentStore({
+              id: storeData.id,
+              name: storeData.name,
+              zone_name: storeData.zone?.name || 'Central District',
+              is_open: storeData.is_open !== false,
+            });
+          }
 
-  const filteredProducts = SAMPLE_PRODUCTS.filter((prod) => {
+          const productsData = await storesApi.getStoreProducts(id, {
+            category: selectedCategory !== 'All' ? selectedCategory : undefined,
+            search: searchTerm.trim() || undefined,
+            inStock: inStockOnly ? 'true' : undefined,
+          });
+          if (isMounted && productsData && Array.isArray(productsData) && productsData.length > 0) {
+            setProducts(productsData);
+          }
+        }
+      } catch {
+        // Fallback gracefully
+      }
+    };
+    fetchStoreAndProducts();
+    return () => {
+      isMounted = false;
+    };
+  }, [id, selectedCategory, searchTerm, inStockOnly]);
+
+  const categories = ['All', 'Dairy', 'Dairy & Eggs', 'Bakery', 'Fruits', 'Pantry', 'Supplements', 'Essentials'];
+
+  const filteredProducts = products.filter((prod) => {
     const matchesSearch = prod.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || prod.category === selectedCategory;
     const matchesStock = !inStockOnly || prod.stock_qty > 0;

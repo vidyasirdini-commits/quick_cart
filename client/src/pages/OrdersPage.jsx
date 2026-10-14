@@ -4,6 +4,7 @@ import { Clock, Eye, Store, ShoppingBag, XCircle, RefreshCw } from 'lucide-react
 import { Badge, Button, Card, EmptyState, Modal } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
+import { ordersApi } from '../services';
 
 const SAMPLE_ORDERS = [
   {
@@ -55,16 +56,25 @@ export const OrdersPage = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const toast = useToast();
 
+  const fetchOrdersList = async () => {
+    try {
+      const data = await ordersApi.getOrders();
+      if (data && Array.isArray(data) && data.length > 0) {
+        setOrders(data);
+      }
+    } catch {
+      // Keep sample orders as fallback
+    }
+  };
+
+  useEffect(() => {
+    fetchOrdersList();
+  }, []);
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const res = await fetch('/api/orders', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('quickcart_token')}` },
-      });
-      const data = await res.json();
-      if (data.success && data.data) {
-        setOrders(data.data);
-      }
+      await fetchOrdersList();
       toast.info('Orders list refreshed');
     } catch {
       toast.info('Orders list updated');
@@ -78,23 +88,16 @@ export const OrdersPage = () => {
     if (!orderId) return;
 
     try {
-      await fetch(`/api/orders/${orderId}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('quickcart_token')}`,
-        },
-        body: JSON.stringify({ status: 'cancelled' }),
-      });
-    } catch {
-      // Mock fallback
+      await ordersApi.updateOrderStatus(orderId, { status: 'cancelled' });
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled' } : o))
+      );
+      toast.warning(`Order #${orderId} has been cancelled.`);
+    } catch (err) {
+      toast.error(err.message || 'Unable to cancel order.');
+    } finally {
+      setCancelModal({ isOpen: false, orderId: null });
     }
-
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: 'cancelled' } : o))
-    );
-    toast.warning(`Order #${orderId} has been cancelled.`);
-    setCancelModal({ isOpen: false, orderId: null });
   };
 
   const filteredOrders = orders.filter((o) => {

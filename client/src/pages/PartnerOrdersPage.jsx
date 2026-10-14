@@ -12,6 +12,7 @@ import {
 import { Card, Badge, Button, Modal, Input, EmptyState } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
+import { ordersApi } from '../services';
 
 const INITIAL_ORDERS = [
   {
@@ -72,50 +73,84 @@ export const PartnerOrdersPage = () => {
 
   // Polling every 10 seconds
   useEffect(() => {
+    let isMounted = true;
     const fetchOrders = async () => {
       try {
-        const res = await fetch('/api/orders');
-        const data = await res.json();
-        if (data.success && data.data) {
-          setOrders(data.data);
+        const data = await ordersApi.getOrders();
+        if (isMounted && data && Array.isArray(data) && data.length > 0) {
+          const formatted = data.map((ord) => ({
+            id: ord.id,
+            customer: ord.customer?.name || 'Customer',
+            phone: ord.customer?.phone || '+91 98765 43210',
+            delivery_address: ord.delivery_address,
+            total: Number(ord.total || 0),
+            status: ord.status,
+            created_at: ord.created_at,
+            items: ord.items?.map((it) => ({
+              id: it.id,
+              name: it.product?.name || it.name || 'Store Item',
+              qty: it.qty,
+              price: Number(it.unit_price || 0),
+            })) || [],
+          }));
+          setOrders(formatted);
         }
       } catch {
-        // Mock fallback
+        // Fallback
       }
     };
 
+    fetchOrders();
     const interval = setInterval(fetchOrders, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, []);
 
-  const handleStatusTransition = (orderId, newStatus) => {
+  const handleStatusTransition = async (orderId, newStatus) => {
     setOrders((prev) =>
       prev.map((ord) => (ord.id === orderId ? { ...ord, status: newStatus } : ord))
     );
 
-    const labels = {
-      accepted: 'Order accepted! Stock decremented.',
-      packed: 'Order marked as packed & ready for dispatch.',
-      out_for_delivery: 'Dispatched! Handed over to zone delivery executive.',
-    };
-    toast.success(labels[newStatus] || `Order moved to ${newStatus}`);
+    try {
+      await ordersApi.updateOrderStatus(orderId, { status: newStatus });
+      const labels = {
+        accepted: 'Order accepted! Stock decremented.',
+        packed: 'Order marked as packed & ready for dispatch.',
+        out_for_delivery: 'Dispatched! Handed over to zone delivery executive.',
+      };
+      toast.success(labels[newStatus] || `Order moved to ${newStatus}`);
+    } catch (err) {
+      toast.error(err.message || 'Status transition failed.');
+    }
   };
 
-  const handleRejectSubmit = () => {
+  const handleRejectSubmit = async () => {
     if (!rejectModal.reason.trim()) {
       toast.error('Please specify a reason for rejecting the order');
       return;
     }
 
+    const orderId = rejectModal.orderId;
+    const reason = rejectModal.reason.trim();
+
     setOrders((prev) =>
       prev.map((ord) =>
-        ord.id === rejectModal.orderId
-          ? { ...ord, status: 'rejected', rejectReason: rejectModal.reason }
+        ord.id === orderId
+          ? { ...ord, status: 'rejected', rejectReason: reason }
           : ord
       )
     );
-    toast.warning(`Order #${rejectModal.orderId} rejected.`);
-    setRejectModal({ isOpen: false, orderId: null, reason: '' });
+
+    try {
+      await ordersApi.updateOrderStatus(orderId, { status: 'rejected', reason });
+      toast.warning(`Order #${orderId} rejected.`);
+    } catch (err) {
+      toast.error(err.message || 'Failed to reject order.');
+    } finally {
+      setRejectModal({ isOpen: false, orderId: null, reason: '' });
+    }
   };
 
   const pendingOrders = orders.filter((o) => o.status === 'placed');

@@ -13,6 +13,7 @@ import {
 import { Stepper, Card, Badge, Button, Modal } from '../components';
 import { useToast } from '../components/Toast';
 import { formatCurrency, formatDate } from '../utils';
+import { ordersApi } from '../services';
 
 export const OrderTrackerPage = () => {
   const { id } = useParams();
@@ -63,29 +64,54 @@ export const OrderTrackerPage = () => {
 
   // Poll for status update every 10 seconds
   useEffect(() => {
+    let isMounted = true;
     const fetchOrderStatus = async () => {
       try {
-        const response = await fetch(`/api/orders/${id}`);
-        const res = await response.json();
-        if (res.success && res.data) {
-          setOrder(res.data);
+        if (id) {
+          const data = await ordersApi.getOrderById(id);
+          if (isMounted && data) {
+            setOrder((prev) => ({
+              ...prev,
+              ...data,
+              items: data.items?.map((it) => ({
+                id: it.id,
+                name: it.product?.name || it.name || 'Item',
+                qty: it.qty,
+                unit_price: it.unit_price,
+              })) || prev.items,
+            }));
+          }
         }
       } catch {
         // Fallback in mock mode
       }
     };
 
+    fetchOrderStatus();
     const interval = setInterval(fetchOrderStatus, 10000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [id]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const response = await fetch(`/api/orders/${id}`);
-      const res = await response.json();
-      if (res.success && res.data) {
-        setOrder(res.data);
+      if (id) {
+        const data = await ordersApi.getOrderById(id);
+        if (data) {
+          setOrder((prev) => ({
+            ...prev,
+            ...data,
+            items: data.items?.map((it) => ({
+              id: it.id,
+              name: it.product?.name || it.name || 'Item',
+              qty: it.qty,
+              unit_price: it.unit_price,
+            })) || prev.items,
+          }));
+        }
       }
       toast.info('Order progress updated');
     } catch {
@@ -97,38 +123,12 @@ export const OrderTrackerPage = () => {
 
   const handleCancelOrder = async () => {
     try {
-      const response = await fetch(`/api/orders/${id}/status`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('quickcart_token')}`,
-        },
-        body: JSON.stringify({ status: 'cancelled' }),
-      });
-      const res = await response.json();
-      if (res.success) {
-        setOrder((prev) => ({
-          ...prev,
-          status: 'cancelled',
-          status_history: [
-            ...prev.status_history,
-            {
-              id: `h-${Date.now()}`,
-              status: 'cancelled',
-              changed_by: 'Customer',
-              changed_at: new Date().toISOString(),
-            },
-          ],
-        }));
-        toast.warning('Order has been cancelled.');
-      }
-    } catch {
-      // Mock cancellation update
+      await ordersApi.updateOrderStatus(id, { status: 'cancelled' });
       setOrder((prev) => ({
         ...prev,
         status: 'cancelled',
         status_history: [
-          ...prev.status_history,
+          ...(prev.status_history || []),
           {
             id: `h-${Date.now()}`,
             status: 'cancelled',
@@ -137,7 +137,9 @@ export const OrderTrackerPage = () => {
           },
         ],
       }));
-      toast.warning('Order marked as cancelled.');
+      toast.warning('Order has been cancelled.');
+    } catch (err) {
+      toast.error(err.message || 'Unable to cancel order.');
     } finally {
       setCancelModalOpen(false);
     }

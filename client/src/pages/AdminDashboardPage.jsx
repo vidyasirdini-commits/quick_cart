@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   TrendingUp,
   CreditCard,
@@ -23,8 +23,9 @@ import {
   Legend,
 } from 'recharts';
 import { StatCard, Card } from '../components';
+import { adminApi } from '../services';
 
-const DAILY_ORDERS_DATA = [
+const DEFAULT_DAILY_ORDERS = [
   { day: 'Mon', orders: 45, volume: 14200 },
   { day: 'Tue', orders: 52, volume: 16800 },
   { day: 'Wed', orders: 58, volume: 19100 },
@@ -34,13 +35,13 @@ const DAILY_ORDERS_DATA = [
   { day: 'Sun', orders: 90, volume: 31000 },
 ];
 
-const ZONE_ORDERS_DATA = [
+const DEFAULT_ZONE_ORDERS = [
   { zone: 'Central District', orders: 215 },
   { zone: 'North Sector', orders: 142 },
   { zone: 'West Hills', orders: 98 },
 ];
 
-const STATUS_PIE_DATA = [
+const DEFAULT_STATUS_PIE = [
   { name: 'Delivered', value: 340, color: '#16A34A' },
   { name: 'Out for Delivery', value: 45, color: '#2563EB' },
   { name: 'Accepted / Packed', value: 38, color: '#F59E0B' },
@@ -49,6 +50,42 @@ const STATUS_PIE_DATA = [
 ];
 
 export const AdminDashboardPage = () => {
+  const [stats, setStats] = useState({
+    total_orders: 455,
+    gross_volume: 166100,
+    completion_rate: '96.2%',
+    avg_fulfilment_time_min: '24.5 min',
+    daily_orders: DEFAULT_DAILY_ORDERS,
+    zone_distribution: DEFAULT_ZONE_ORDERS,
+    status_distribution: DEFAULT_STATUS_PIE,
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchStats = async () => {
+      try {
+        const data = await adminApi.getStats();
+        if (isMounted && data) {
+          setStats((prev) => ({
+            ...prev,
+            ...data,
+            daily_orders: data.daily_orders || prev.daily_orders,
+            zone_distribution: data.zone_distribution || prev.zone_distribution,
+            status_distribution: data.status_distribution || prev.status_distribution,
+          }));
+        }
+      } catch {
+        // Fallback
+      }
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 15000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -68,21 +105,21 @@ export const AdminDashboardPage = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
           title="Total Orders"
-          value="455"
+          value={String(stats.total_orders)}
           trend={14}
           icon={TrendingUp}
           variant="default"
         />
         <StatCard
           title="Gross Volume"
-          value="₹1,66,100"
+          value={`₹${Number(stats.gross_volume).toLocaleString('en-IN')}`}
           trend={18}
           icon={CreditCard}
           variant="default"
         />
         <StatCard
           title="Completion Rate"
-          value="96.2%"
+          value={stats.completion_rate}
           trend={2.4}
           icon={CheckCircle2}
           variant="default"
@@ -90,7 +127,7 @@ export const AdminDashboardPage = () => {
         />
         <StatCard
           title="Avg Fulfilment Time"
-          value="24.5 min"
+          value={stats.avg_fulfilment_time_min}
           trend={-8}
           icon={Clock}
           variant="info"
@@ -106,7 +143,7 @@ export const AdminDashboardPage = () => {
           <Card.Description>Daily completed transactions and checkout load</Card.Description>
           <div className="h-72 mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={DAILY_ORDERS_DATA}>
+              <LineChart data={stats.daily_orders}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} />
                 <YAxis stroke="#94a3b8" fontSize={12} />
@@ -138,7 +175,7 @@ export const AdminDashboardPage = () => {
           <Card.Description>Demand density across active delivery territories</Card.Description>
           <div className="h-72 mt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={ZONE_ORDERS_DATA}>
+              <BarChart data={stats.zone_distribution}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="zone" stroke="#94a3b8" fontSize={11} />
                 <YAxis stroke="#94a3b8" fontSize={12} />
@@ -166,13 +203,13 @@ export const AdminDashboardPage = () => {
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={STATUS_PIE_DATA}
+                    data={stats.status_distribution}
                     innerRadius={60}
                     outerRadius={90}
                     paddingAngle={4}
                     dataKey="value"
                   >
-                    {STATUS_PIE_DATA.map((entry, index) => (
+                    {stats.status_distribution.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
                     ))}
                   </Pie>
@@ -182,7 +219,7 @@ export const AdminDashboardPage = () => {
             </div>
 
             <div className="space-y-3">
-              {STATUS_PIE_DATA.map((item) => (
+              {stats.status_distribution.map((item) => (
                 <div key={item.name} className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2.5">
                     <span
