@@ -1,2 +1,19 @@
-// Pages barrel export
-export {};
+export { HomePage } from './HomePage';
+export { LoginPage } from './LoginPage';
+export { RegisterPage } from './RegisterPage';
+export { StoresPage } from './StoresPage';
+export { StoreDetailsPage } from './StoreDetailsPage';
+export { CartPage } from './CartPage';
+export { CheckoutPage } from './CheckoutPage';
+export { OrdersPage } from './OrdersPage';
+export { OrderTrackerPage } from './OrderTrackerPage';
+export { PartnerDashboardPage } from './PartnerDashboardPage';
+export { PartnerInventoryPage } from './PartnerInventoryPage';
+export { PartnerOrdersPage } from './PartnerOrdersPage';
+export { AdminDashboardPage } from './AdminDashboardPage';
+export { AdminTransactionsPage } from './AdminTransactionsPage';
+export { AdminZonesPage } from './AdminZonesPage';
+export { AdminUsersPage } from './AdminUsersPage';
+export { DeliveryTasksPage } from './DeliveryTasksPage';
+export { ForbiddenPage } from './ForbiddenPage';
+export { NotFoundPage } from './NotFoundPage';

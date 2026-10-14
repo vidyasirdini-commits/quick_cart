@@ -1,21 +1,110 @@
 import React from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
+import { ToastProvider } from './components/Toast';
+
+import { PublicLayout, DashboardLayout, AuthLayout } from './layouts';
+import { ProtectedRoute } from './components';
+
+import {
+  HomePage,
+  LoginPage,
+  RegisterPage,
+  StoresPage,
+  StoreDetailsPage,
+  CartPage,
+  CheckoutPage,
+  OrdersPage,
+  OrderTrackerPage,
+  PartnerDashboardPage,
+  PartnerInventoryPage,
+  PartnerOrdersPage,
+  AdminDashboardPage,
+  AdminTransactionsPage,
+  AdminZonesPage,
+  AdminUsersPage,
+  DeliveryTasksPage,
+  ForbiddenPage,
+  NotFoundPage,
+} from './pages';
 
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="text-center p-8 bg-white rounded-xl shadow-sm border border-slate-200 max-w-md">
-        <div className="w-12 h-12 bg-primary text-white rounded-lg flex items-center justify-center mx-auto mb-4 font-bold text-xl">
-          QC
-        </div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">QuickCart</h1>
-        <p className="text-slate-600 text-sm mb-4">
-          Hyperlocal delivery platform uniting customers, store partners, admins, and delivery executives.
-        </p>
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-primary-100 text-primary-800">
-          Environment Ready
-        </span>
-      </div>
-    </div>
+    <BrowserRouter>
+      <AuthProvider>
+        <CartProvider>
+          <ToastProvider>
+            <Routes>
+              {/* Public & Customer Storefront Routes */}
+              <Route element={<PublicLayout />}>
+                <Route path="/" element={<HomePage />} />
+                <Route path="/stores" element={<StoresPage />} />
+                <Route path="/stores/:id" element={<StoreDetailsPage />} />
+                <Route path="/cart" element={<CartPage />} />
+
+                {/* Customer Protected */}
+                <Route element={<ProtectedRoute allowedRoles={['customer', 'admin']} />}>
+                  <Route path="/checkout" element={<CheckoutPage />} />
+                  <Route path="/orders" element={<OrdersPage />} />
+                  <Route path="/orders/:id" element={<OrderTrackerPage />} />
+                </Route>
+
+                <Route path="/403" element={<ForbiddenPage />} />
+                <Route path="/404" element={<NotFoundPage />} />
+              </Route>
+
+              {/* Authentication Routes */}
+              <Route element={<AuthLayout />}>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+              </Route>
+
+              {/* Store Partner Dashboard */}
+              <Route
+                element={
+                  <ProtectedRoute allowedRoles={['partner', 'admin']}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/partner/dashboard" element={<PartnerDashboardPage />} />
+                <Route path="/partner/inventory" element={<PartnerInventoryPage />} />
+                <Route path="/partner/orders" element={<PartnerOrdersPage />} />
+              </Route>
+
+              {/* Administrator Dashboard */}
+              <Route
+                element={
+                  <ProtectedRoute allowedRoles={['admin']}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+                <Route path="/admin/transactions" element={<AdminTransactionsPage />} />
+                <Route path="/admin/zones" element={<AdminZonesPage />} />
+                <Route path="/admin/users" element={<AdminUsersPage />} />
+              </Route>
+
+              {/* Delivery Executive Dashboard */}
+              <Route
+                element={
+                  <ProtectedRoute allowedRoles={['delivery', 'admin']}>
+                    <DashboardLayout />
+                  </ProtectedRoute>
+                }
+              >
+                <Route path="/delivery/tasks" element={<DeliveryTasksPage />} />
+              </Route>
+
+              {/* Catch-all 404 */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </ToastProvider>
+        </CartProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 

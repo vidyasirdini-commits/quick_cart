@@ -10,3 +10,4 @@ export { EmptyState } from './EmptyState';
 export { DataTable } from './DataTable';
 export { StatCard } from './StatCard';
 export { Stepper } from './Stepper';
+export { ProtectedRoute } from './ProtectedRoute';
