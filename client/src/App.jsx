@@ -33,7 +33,7 @@ const PageLoader = () => (
   <div className="min-h-[50vh] flex items-center justify-center p-8" role="status" aria-label="Loading page">
     <div className="flex flex-col items-center gap-3">
       <div className="w-8 h-8 border-3 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
-      <span className="text-xs font-medium text-slate-500">Loading QuickCart...</span>
+      <span className="text-xs font-medium text-slate-500">Loading QuickCart...get ready to shop crazy</span>
     </div>
   </div>
 );
@@ -44,6 +44,9 @@ function App() {
       <AuthProvider>
         <CartProvider>
           <ToastProvider>
+            <div className="bg-gradient-to-r from-amber-500 to-orange-500 text-white text-center py-2 text-sm font-semibold tracking-wide shadow-sm">
+      🎉 Go shopping crazy! Fast delivery to your doorstep 🛒✨
+    </div>
             <React.Suspense fallback={<PageLoader />}>
               <Routes>
               {/* Public & Customer Storefront Routes */}
