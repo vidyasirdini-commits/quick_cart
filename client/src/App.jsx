@@ -33,7 +33,7 @@ const PageLoader = () => (
   <div className="min-h-[50vh] flex items-center justify-center p-8" role="status" aria-label="Loading page">
     <div className="flex flex-col items-center gap-3">
       <div className="w-8 h-8 border-3 border-primary-200 border-t-primary-600 rounded-full animate-spin" />
-      <span className="text-xs font-medium text-slate-500">Loading QuickCart...get ready to shop crazy</span>
+      <span className="text-xs font-medium text-slate-500">Loading QuickCart...get ready to do shopping crazy</span>
     </div>
   </div>
 );
